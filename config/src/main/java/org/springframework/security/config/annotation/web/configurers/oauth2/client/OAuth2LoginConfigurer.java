@@ -21,6 +21,7 @@ import org.springframework.core.ResolvableType;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.config.annotation.web.HttpSecurityBuilder;
 import org.springframework.security.config.annotation.web.configurers.AbstractAuthenticationFilterConfigurer;
+import org.springframework.security.config.annotation.web.configurers.LogoutConfigurer;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
@@ -43,6 +44,7 @@ import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
 import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
 import org.springframework.security.oauth2.client.web.AuthorizationRequestRepository;
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter;
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizedClientLogoutHandler;
 import org.springframework.security.oauth2.client.web.OAuth2LoginAuthenticationFilter;
 import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -75,6 +77,7 @@ public final class OAuth2LoginConfigurer<B extends HttpSecurityBuilder<B>> exten
 	private final RedirectionEndpointConfig redirectionEndpointConfig = new RedirectionEndpointConfig();
 	private final UserInfoEndpointConfig userInfoEndpointConfig = new UserInfoEndpointConfig();
 	private String loginPage;
+	private boolean useAuthorizedClientLogoutHandler = true;
 
 	public OAuth2LoginConfigurer() {
 		super();
@@ -89,6 +92,11 @@ public final class OAuth2LoginConfigurer<B extends HttpSecurityBuilder<B>> exten
 	public OAuth2LoginConfigurer<B> authorizedClientService(OAuth2AuthorizedClientService authorizedClientService) {
 		Assert.notNull(authorizedClientService, "authorizedClientService cannot be null");
 		this.getBuilder().setSharedObject(OAuth2AuthorizedClientService.class, authorizedClientService);
+		return this;
+	}
+
+	public OAuth2LoginConfigurer<B> disableAuthorizedClientLogoutHandler() {
+		this.useAuthorizedClientLogoutHandler = false;
 		return this;
 	}
 
@@ -272,6 +280,12 @@ public final class OAuth2LoginConfigurer<B extends HttpSecurityBuilder<B>> exten
 			http.authenticationProvider(this.postProcess(oidcAuthorizationCodeAuthenticationProvider));
 		} else {
 			http.authenticationProvider(new OidcAuthenticationRequestChecker());
+		}
+
+		LogoutConfigurer<B> logoutConfigurer = http.getConfigurer(LogoutConfigurer.class);
+		if (logoutConfigurer != null && this.useAuthorizedClientLogoutHandler) {
+			logoutConfigurer.addLogoutHandler(new OAuth2AuthorizedClientLogoutHandler(
+				this.getAuthorizedClientService()));
 		}
 
 		this.initDefaultLoginFilter(http);
